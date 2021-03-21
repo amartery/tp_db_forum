@@ -8,7 +8,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// StatServer ...
+// ForumServer ...
 type ForumServer struct {
 	config *Config
 	logger *logrus.Logger

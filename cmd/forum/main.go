@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/BurntSushi/toml"
-	"github.com/amartery/tp_db_forum/internal/app/delivery/http"
+	"github.com/amartery/tp_db_forum/internal/app/forum/delivery/http"
 )
 
 var (
