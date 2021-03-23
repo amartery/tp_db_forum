@@ -1,4 +1,4 @@
-package forum​
+package post
 
 type Usecase interface {
 }

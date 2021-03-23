@@ -1,4 +1,4 @@
-package http
+package http_server
 
 // Config ...
 type Config struct {

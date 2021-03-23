@@ -1,4 +1,4 @@
-package forum​
+package thread
 
 type Repository interface {
 }

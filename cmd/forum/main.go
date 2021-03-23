@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/BurntSushi/toml"
-	"github.com/amartery/tp_db_forum/internal/app/forum/delivery/http"
+	"github.com/amartery/tp_db_forum/internal/app/http_server"
 )
 
 var (
@@ -12,7 +12,7 @@ var (
 )
 
 func main() {
-	config := http.NewConfig()
+	config := http_server.NewConfig()
 
 	_, err := toml.DecodeFile(configPath, config)
 	if err != nil {
@@ -27,7 +27,7 @@ func main() {
 	// statRep := postgresDB.NewStatRepository(postgresCon)
 	// statUsecase := usecase.NewStatUsecase(statRep)
 
-	s := http.New(config)
+	s := http_server.New(config)
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}

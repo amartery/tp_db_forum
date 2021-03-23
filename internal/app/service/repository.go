@@ -1,4 +1,4 @@
-package forum​
+package service
 
 type Repository interface {
 }
