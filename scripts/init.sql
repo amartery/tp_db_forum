@@ -5,10 +5,9 @@ CREATE TABLE IF NOT EXISTS Users
 (
     id          BIGSERIAL,
     fullname    VARCHAR(100) NOT NULL,
-    email       citext       NOT NULL UNIQUE
+    email       citext       NOT NULL UNIQUE,
     nickname    citext       NOT NULL PRIMARY KEY,
-    about       TEXT,
-    
+    about       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Forum
@@ -42,8 +41,8 @@ CREATE TABLE IF NOT EXISTS Posts
     msg         TEXT      NOT NULL,
     parent      INTEGER   DEFAULT 0,
     is_edited   BOOLEAN   DEFAULT false,
-    path        BIGINT[]  DEFAULT ARRAY []::INTEGER[]
-    created     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    path        BIGINT[]  DEFAULT ARRAY []::INTEGER[],
+    created     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 
@@ -61,3 +60,9 @@ CREATE TABLE IF NOT EXISTS Users_to_forums
     forum    citext NOT NULL REFERENCES forum (slug),
     UNIQUE (nickname, forum)
 );
+
+-- create database db_tp;
+-- create user admin with encrypted password 'admin';
+-- alter user admin with superuser;
+-- grant all privileges on database db_tp to admin;
+-- \i 'init.sql';

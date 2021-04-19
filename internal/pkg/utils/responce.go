@@ -3,20 +3,19 @@ package utils
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
+	"github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 )
 
 func SendServerError(errorMessage string, ctx *fasthttp.RequestCtx) {
+	logrus.Error(errors.New(errorMessage))
 	ctx.SetStatusCode(http.StatusInternalServerError)
-	fmt.Printf("{level: error, message: %s}", errors.New(errorMessage))
 }
 
 func SendResponse(code int, data interface{}, ctx *fasthttp.RequestCtx) {
 	ctx.SetStatusCode(code)
-
 	serializedData, err := json.Marshal(data)
 	if err != nil {
 		SendServerError(err.Error(), ctx)

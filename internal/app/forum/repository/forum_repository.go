@@ -17,10 +17,10 @@ func NewForumRepository(con *pgxpool.Pool) *ForumRepository {
 	}
 }
 
-func (forumRep *ForumRepository) CreateForum(forum *models.Forum) error {
+func (repo *ForumRepository) CreateForum(forum *models.Forum) error {
 	query := `INSERT INTO Forum (title, user_nickname, slug, posts, threads)
 			  VALUES ($1, $2, $3, $4, $5)`
-	_, err := forumRep.Con.Exec(
+	_, err := repo.Con.Exec(
 		context.Background(),
 		query,
 		forum.Tittle,
