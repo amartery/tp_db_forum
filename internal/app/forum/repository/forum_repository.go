@@ -18,8 +18,7 @@ func NewForumRepository(con *pgxpool.Pool) *ForumRepository {
 }
 
 func (repo *ForumRepository) CreateForum(forum *models.Forum) error {
-	query := `INSERT INTO Forum (title, user_nickname, slug, posts, threads)
-			  VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO Forum (title, user_nickname, slug, posts, threads) VALUES ($1, $2, $3, $4, $5)`
 	_, err := repo.Con.Exec(
 		context.Background(),
 		query,
@@ -30,4 +29,24 @@ func (repo *ForumRepository) CreateForum(forum *models.Forum) error {
 		forum.Threads,
 	)
 	return err
+}
+
+func (repo *ForumRepository) GetForumBySlug(slug string) (*models.Forum, error) {
+	query := `SELECT title, user_nickname, slug, posts, threads FROM Forum WHERE slug = $1`
+	forum := &models.Forum{}
+
+	err := repo.Con.QueryRow(
+		context.Background(),
+		query,
+		slug).Scan(
+		&forum.Tittle,
+		&forum.Nickname,
+		&forum.Slug,
+		&forum.Posts,
+		&forum.Threads)
+
+	if err != nil {
+		return nil, err
+	}
+	return forum, nil
 }

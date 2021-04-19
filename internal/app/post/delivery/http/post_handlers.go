@@ -15,7 +15,7 @@ func PostDetailsGet(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting PostDetailsGet")
 	id, ok := ctx.UserValue("id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("PostDetailsGet!\nid: %s\n", id)
@@ -26,7 +26,7 @@ func PostDetailsUpdate(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting PostDetailsUpdate")
 	id, ok := ctx.UserValue("id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("PostDetailsUpdate!\nid: %s\n", id)

@@ -19,3 +19,8 @@ func (usecase *ForumUsecase) CreateForum(forum *models.Forum) error {
 	err := usecase.repo.CreateForum(forum)
 	return err
 }
+
+func (usecase *ForumUsecase) GetForumBySlug(slug string) (*models.Forum, error) {
+	forum, err := usecase.repo.GetForumBySlug(slug)
+	return forum, err
+}

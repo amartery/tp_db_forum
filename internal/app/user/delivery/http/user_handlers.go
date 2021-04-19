@@ -16,7 +16,7 @@ func CreateUser(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CreateUser")
 	nickname, ok := ctx.UserValue("nickname").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("CreateUser!\nnickname: %s\n", nickname)
@@ -27,7 +27,7 @@ func AboutUserGet(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting AboutUserGet")
 	nickname, ok := ctx.UserValue("nickname").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("AboutUserGet!\nnickname: %s\n", nickname)
@@ -38,7 +38,7 @@ func AboutUserUpdate(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting AboutUserUpdate")
 	nickname, ok := ctx.UserValue("nickname").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("AboutUserUpdate!\nnickname: %s\n", nickname)

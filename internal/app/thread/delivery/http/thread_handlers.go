@@ -18,7 +18,7 @@ func CreatePostInBranch(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CreatePostInBranch")
 	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("CreatePostInBranch!\nslug_or_id: %s\n", slug_or_id)
@@ -29,7 +29,7 @@ func BranchDetailsGet(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting BranchDetailsGet")
 	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("BranchDetailsGet!\nslug_or_id: %s\n", slug_or_id)
@@ -40,7 +40,7 @@ func BranchDetailsUpdate(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting BranchDetailsUpdate")
 	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("BranchDetailsUpdate!\nslug_or_id: %s\n", slug_or_id)
@@ -51,7 +51,7 @@ func CurrentBranchPosts(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CurrentBranchPosts")
 	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("CurrentBranchPosts!\nslug_or_id: %s\n", slug_or_id)
@@ -62,7 +62,7 @@ func VoteForBranch(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting VoteForBranch")
 	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("VoteForBranch!\nslug_or_id: %s\n", slug_or_id)

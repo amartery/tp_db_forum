@@ -33,29 +33,38 @@ func NewForumHandler(forumUsecase forum.Usecase, userUsecase user.Usecase) *Foru
 // TODO: s.router.GET("​/forum​/{slug}​/threads", s.ForumBranches)
 
 func (f *ForumHandler) ForumCreate(ctx *fasthttp.RequestCtx) {
-	// f.logger.Info("starting ForumCreate")
 	f.logger.Info("starting ForumCreate")
-	//ans := fmt.Sprintf("ForumCreate!\n")
-
 	newForum := &models.Forum{}
 	err := json.Unmarshal(ctx.PostBody(), newForum)
 	if err != nil {
-		utils.SendServerError(err.Error(), ctx)
+		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		return
+	}
+	_, err = f.usecaseUser.GetUserByNickname(newForum.Nickname)
+	if err != nil {
+		msg := fmt.Sprintf("Can't find user with nickname %s", newForum.Nickname)
+		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
 		return
 	}
 	err = f.usecaseForum.CreateForum(newForum)
 	if err != nil {
-		utils.SendServerError(err.Error(), ctx)
+		alredyExicted, err := f.usecaseForum.GetForumBySlug(newForum.Slug)
+		if err != nil {
+			msg := fmt.Sprintf("Can't find user with nickname %s", newForum.Nickname)
+			utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+			return
+		}
+		utils.SendResponse(fasthttp.StatusConflict, alredyExicted, ctx)
 		return
 	}
-	utils.SendResponse(200, newForum, ctx)
+	utils.SendResponse(fasthttp.StatusCreated, newForum, ctx)
 }
 
 func (f *ForumHandler) ForumDetails(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumDetails")
 	slug, ok := ctx.UserValue("slug").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("ForumDetails!\nslug: %s\n", slug)
@@ -66,7 +75,7 @@ func (f *ForumHandler) ForumCreateBranch(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumCreateBranch")
 	slug, ok := ctx.UserValue("slug").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("ForumCreateBranch!\nslug: %s\n", slug)
@@ -77,7 +86,7 @@ func (f *ForumHandler) CurrentForumUsers(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting CurrentForumUsers")
 	slug, ok := ctx.UserValue("slug").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("CurrentForumUsers!\nslug: %s\n", slug)
@@ -88,7 +97,7 @@ func (f *ForumHandler) ForumBranches(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumBranches")
 	slug, ok := ctx.UserValue("slug").(string)
 	if !ok {
-		utils.SendServerError("some err", ctx)
+		utils.SendServerError("", fasthttp.StatusInternalServerError, ctx)
 		return
 	}
 	ans := fmt.Sprintf("ForumBranches!\nslug: %s\n", slug)
