@@ -77,7 +77,7 @@ func (s *ForumServer) configureLogger() error {
 
 func (s *ForumServer) configureRouter() {
 
-	forumHandlers := DeliveryForum.NewForumHandler(s.usecaseForum, s.usecaseUser)
+	forumHandlers := DeliveryForum.NewForumHandler(s.usecaseForum, s.usecaseUser, s.usecaseThread)
 	s.router.POST("/forum/create", forumHandlers.ForumCreate)
 	s.router.GET("/forum/{slug}/details", forumHandlers.ForumDetails)
 	s.router.POST("/forum/{slug}/create", forumHandlers.ForumCreateBranch)

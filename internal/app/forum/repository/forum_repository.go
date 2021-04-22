@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/amartery/tp_db_forum/internal/app/forum/models"
+	usersModels "github.com/amartery/tp_db_forum/internal/app/user/models"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -49,4 +51,36 @@ func (repo *ForumRepository) GetForumBySlug(slug string) (*models.Forum, error) 
 		return nil, err
 	}
 	return forum, nil
+}
+
+func (repo *ForumRepository) GetUsersByForum(slug, since string, limit int, desc bool) ([]*usersModels.User, error) {
+	query := fmt.Sprintf(`select u.nickname, u.fullname, u.about, u.email from users_to_forums
+			left join users u on users_to_forums.nickname = u.nickname
+			where users_to_forums.forum = '%s'`, slug)
+	if desc && since != "" {
+		query += fmt.Sprintf(` and u.nickname < '%s'`, since)
+	} else if since != "" {
+		query += fmt.Sprintf(` and u.nickname > '%s'`, since)
+	}
+	query += ` order by u.nickname `
+	if desc {
+		query += "desc"
+	}
+	query += fmt.Sprintf(` limit %d`, limit)
+	rows, err := repo.Con.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := make([]*usersModels.User, 0)
+
+	for rows.Next() {
+		user := &usersModels.User{}
+		err := rows.Scan(&user.Nickname, &user.FullName, &user.About, &user.Email)
+		if err != nil {
+			fmt.Println(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }
