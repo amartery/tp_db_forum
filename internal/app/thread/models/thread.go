@@ -11,3 +11,8 @@ type Thread struct {
 	Slug    string `json:"slug,omitempty"`
 	Created string `json:"created"`
 }
+
+type UpdateRequest struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
