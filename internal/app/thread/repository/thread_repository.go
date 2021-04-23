@@ -141,3 +141,28 @@ func (t *ThreadRepository) GetThreadsByForumSlug(slug, since, desc string, limit
 	}
 	return threads, nil
 }
+
+func (tr *ThreadRepository) FindThreadByID(threadID int) (*models.Thread, error) {
+	query := `SELECT id, title, author, forum, message, votes, slug, created FROM Threads
+			  WHERE id = $1`
+	thread := &models.Thread{}
+	t := &time.Time{}
+
+	err := tr.Con.QueryRow(
+		context.Background(),
+		query,
+		threadID).Scan(
+		&thread.ID,
+		&thread.Title,
+		&thread.Author,
+		&thread.Forum,
+		&thread.Message,
+		&thread.Votes,
+		&thread.Slug,
+		t)
+	thread.Created = strfmt.DateTime(t.UTC()).String()
+	if err != nil {
+		return nil, err
+	}
+	return thread, nil
+}

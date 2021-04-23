@@ -52,7 +52,7 @@ func main() {
 	userRepo := RepositoryUser.NewUserRepository(DBcon)
 
 	forumUse := UsecaseForum.NewForumUsecase(forumRepo)
-	postUse := UsecasePost.NewPostUsecase(postRepo)
+	postUse := UsecasePost.NewPostUsecase(postRepo, userRepo, forumRepo, threadRepo)
 	serviceUse := UsecaseService.NewServiceUsecase(serviceRepo)
 	threadUse := UsecaseThread.NewThreadUsecase(threadRepo)
 	userUse := UsecaseUser.NewUserUsecase(userRepo)

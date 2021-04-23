@@ -85,11 +85,13 @@ func (s *ForumServer) configureRouter() {
 	s.router.GET("/forum/{slug}/threads", forumHandlers.ForumBranches)
 
 	// ??? в сваггере написано что для ветки а не для поста
-	s.router.GET("/post/{id}/details", DeliveryPost.PostDetailsGet)
-	s.router.POST("/post/{id}/details", DeliveryPost.PostDetailsUpdate)
+	postHandlers := DeliveryPost.NewPostHandler(s.usecasePost)
+	s.router.GET("/post/{id}/details", postHandlers.PostDetailsGet)
+	s.router.POST("/post/{id}/details", postHandlers.PostDetailsUpdate)
 
-	s.router.POST("/service/clear", DeliveryService.ServiceClear)
-	s.router.GET("/service/status", DeliveryService.ServiceStatus)
+	serviceHandlers := DeliveryService.NewServiceHandler(s.usecaseService)
+	s.router.POST("/service/clear", serviceHandlers.ServiceClear)
+	s.router.GET("/service/status", serviceHandlers.ServiceStatus)
 
 	s.router.POST("/thread/{slug_or_id}/create", DeliveryThread.CreatePostInBranch)
 	s.router.GET("/thread/{slug_or_id}/details", DeliveryThread.BranchDetailsGet)
