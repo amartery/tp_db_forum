@@ -54,7 +54,7 @@ func main() {
 	forumUse := UsecaseForum.NewForumUsecase(forumRepo)
 	postUse := UsecasePost.NewPostUsecase(postRepo, userRepo, forumRepo, threadRepo)
 	serviceUse := UsecaseService.NewServiceUsecase(serviceRepo)
-	threadUse := UsecaseThread.NewThreadUsecase(threadRepo)
+	threadUse := UsecaseThread.NewThreadUsecase(threadRepo, userRepo)
 	userUse := UsecaseUser.NewUserUsecase(userRepo)
 
 	s := http_server.New(config, forumUse, postUse, serviceUse, threadUse, userUse)

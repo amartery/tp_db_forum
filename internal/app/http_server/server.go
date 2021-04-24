@@ -84,7 +84,6 @@ func (s *ForumServer) configureRouter() {
 	s.router.GET("/forum/{slug}/users", forumHandlers.CurrentForumUsers)
 	s.router.GET("/forum/{slug}/threads", forumHandlers.ForumBranches)
 
-	// ??? в сваггере написано что для ветки а не для поста
 	postHandlers := DeliveryPost.NewPostHandler(s.usecasePost)
 	s.router.GET("/post/{id}/details", postHandlers.PostDetailsGet)
 	s.router.POST("/post/{id}/details", postHandlers.PostDetailsUpdate)
@@ -93,15 +92,17 @@ func (s *ForumServer) configureRouter() {
 	s.router.POST("/service/clear", serviceHandlers.ServiceClear)
 	s.router.GET("/service/status", serviceHandlers.ServiceStatus)
 
-	s.router.POST("/thread/{slug_or_id}/create", DeliveryThread.CreatePostInBranch)
-	s.router.GET("/thread/{slug_or_id}/details", DeliveryThread.BranchDetailsGet)
-	s.router.POST("/thread/{slug_or_id}/details", DeliveryThread.BranchDetailsUpdate)
-	s.router.POST("/thread/{slug_or_id}/vote", DeliveryThread.VoteForBranch)
-	s.router.GET("/thread/{slug_or_id}/posts", DeliveryThread.CurrentBranchPosts)
+	threadHandlers := DeliveryThread.NewThreadHandler(s.usecaseThread)
+	s.router.POST("/thread/{slug_or_id}/create", threadHandlers.CreatePostInBranch)
+	s.router.GET("/thread/{slug_or_id}/details", threadHandlers.BranchDetailsGet)
+	s.router.POST("/thread/{slug_or_id}/details", threadHandlers.BranchDetailsUpdate)
+	s.router.POST("/thread/{slug_or_id}/vote", threadHandlers.VoteForBranch)
+	s.router.GET("/thread/{slug_or_id}/posts", threadHandlers.CurrentBranchPosts)
 
-	s.router.POST("/user/{nickname}/create", DeliveryUser.CreateUser)
-	s.router.GET("/user/{nickname}/profile", DeliveryUser.AboutUserGet)
-	s.router.POST("/user/{nickname}/profile", DeliveryUser.AboutUserUpdate)
+	userHandlers := DeliveryUser.NewUserHandler(s.usecaseUser)
+	s.router.POST("/user/{nickname}/create", userHandlers.CreateUser)
+	s.router.GET("/user/{nickname}/profile", userHandlers.AboutUserGet)
+	s.router.POST("/user/{nickname}/profile", userHandlers.AboutUserUpdate)
 }
 
 // DeliveryForum "github.com/amartery/tp_db_forum/internal/app/forum/delivery/http"
