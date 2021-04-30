@@ -199,7 +199,7 @@ func (handler *ThreadHandler) CurrentBranchPosts(ctx *fasthttp.RequestCtx) {
 	}
 
 	sortParam := string(ctx.URI().QueryArgs().Peek("sort"))
-	descParam := string(ctx.URI().QueryArgs().Peek("ddesc"))
+	descParam := string(ctx.URI().QueryArgs().Peek("desc"))
 	if descParam == "" {
 		descParam = "false"
 	}
