@@ -15,27 +15,26 @@ func NewUserUsecase(UserRepo user.Repository) *UserUsecase {
 	}
 }
 
-func (u *UserUsecase) GetUserByNickname(nickname string) (*models.User, error) {
-	user, err := u.repo.GetUserByNickname(nickname)
-	return user, err
+func (u *UserUsecase) CheckIfUserExists(nickname string) (string, error) {
+	return u.repo.CheckIfUserExists(nickname)
 }
 
-func (u *UserUsecase) CreateUser(user *models.User) error {
-	err := u.repo.CreateUser(user)
-	return err
+func (u *UserUsecase) Get(nickname string) (*models.User, error) {
+	return u.repo.Get(nickname)
 }
 
-func (u *UserUsecase) GetUserByEmailOrNickname(nickname, email string) ([]*models.User, error) {
-	users, err := u.repo.GetUserByEmailOrNickname(nickname, email)
-	return users, err
+func (u *UserUsecase) Create(model *models.User) error {
+	return u.repo.Create(model)
 }
 
-func (u *UserUsecase) UpdateUserInformation(user *models.User) error {
-	err := u.repo.UpdateUserInformation(user)
-	return err
+func (u *UserUsecase) GetUsersWithNicknameAndEmail(nickname, email string) (*[]models.User, error) {
+	return u.repo.GetUsersWithNicknameAndEmail(nickname, email)
 }
 
-func (u *UserUsecase) GetUserByEmail(email string) (*models.User, error) {
-	user, err := u.repo.GetUserByEmail(email)
-	return user, err
+func (u *UserUsecase) Update(model *models.User) (*models.User, error) {
+	return u.repo.Update(model)
+}
+
+func (u *UserUsecase) GetUserNicknameWithEmail(email string) (string, error) {
+	return u.repo.GetUserNicknameWithEmail(email)
 }

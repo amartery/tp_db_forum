@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/amartery/tp_db_forum/internal/app/forum/models"
-	usersModels "github.com/amartery/tp_db_forum/internal/app/user/models"
+	userModel "github.com/amartery/tp_db_forum/internal/app/user/models"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -20,32 +21,27 @@ func NewForumRepository(con *pgxpool.Pool) *ForumRepository {
 }
 
 func (repo *ForumRepository) CreateForum(forum *models.Forum) error {
-	query := `INSERT INTO Forum (title, user_nickname, slug, posts, threads) VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO forums (slug, title, user_nickname) VALUES($1, $2, $3)`
 	_, err := repo.Con.Exec(
 		context.Background(),
 		query,
-		forum.Tittle,
-		forum.Nickname,
 		forum.Slug,
-		forum.Posts,
-		forum.Threads,
+		forum.Tittle,
+		forum.User,
 	)
 	return err
 }
 
 func (repo *ForumRepository) GetForumBySlug(slug string) (*models.Forum, error) {
-	query := `SELECT title, user_nickname, slug, posts, threads FROM Forum WHERE slug = $1`
+	query := `SELECT slug, title, user_nickname, thread_count, post_count FROM forums WHERE slug = $1`
 	forum := &models.Forum{}
 
-	err := repo.Con.QueryRow(
-		context.Background(),
-		query,
-		slug).Scan(
-		&forum.Tittle,
-		&forum.Nickname,
+	err := repo.Con.QueryRow(context.Background(), query, slug).Scan(
 		&forum.Slug,
-		&forum.Posts,
-		&forum.Threads)
+		&forum.Tittle,
+		&forum.User,
+		&forum.Threads,
+		&forum.Posts)
 
 	if err != nil {
 		return nil, err
@@ -53,34 +49,73 @@ func (repo *ForumRepository) GetForumBySlug(slug string) (*models.Forum, error) 
 	return forum, nil
 }
 
-func (repo *ForumRepository) GetUsersByForum(slug, since string, limit int, desc bool) ([]*usersModels.User, error) {
-	query := fmt.Sprintf(`select u.nickname, u.fullname, u.about, u.email from users_to_forums
-			left join users u on users_to_forums.nickname = u.nickname
-			where users_to_forums.forum = '%s'`, slug)
-	if desc && since != "" {
-		query += fmt.Sprintf(` and u.nickname < '%s'`, since)
-	} else if since != "" {
-		query += fmt.Sprintf(` and u.nickname > '%s'`, since)
+func (repo *ForumRepository) GetUsersByForum(slug string, limit int, since string, desc string) (*[]userModel.User, error) {
+
+	var compare string
+	if desc == "DESC" {
+		compare = "<"
+	} else {
+		compare = ">"
 	}
-	query += ` order by u.nickname `
-	if desc {
-		query += "desc"
+
+	var query string
+	if since != "" {
+		if limit != 0 {
+			query = fmt.Sprintf(`SELECT u.about, u.email, u.fullname, u.nickname FROM users AS u
+				JOIN forum_user AS fu ON u.nickname = fu.nickname
+				WHERE fu.forum_slug = '%s' AND fu.nickname %v '%s'
+				ORDER BY u.nickname %v
+				LIMIT %v`, slug, compare, since, desc, limit)
+		} else {
+			query = fmt.Sprintf(`SELECT u.about, u.email, u.fullname, u.nickname FROM users AS u
+				JOIN forum_user AS fu ON u.nickname = fu.nickname
+				WHERE fu.forum_slug = '%s' AND fu.nickname %v '%s'
+				ORDER BY u.nickname %v`, slug, compare, since, desc)
+		}
+	} else {
+		if limit != 0 {
+			query = fmt.Sprintf(`SELECT u.about, u.email, u.fullname, u.nickname FROM users AS u
+				JOIN forum_user AS fu ON u.nickname = fu.nickname
+				WHERE fu.forum_slug = '%s'
+				ORDER BY u.nickname %v
+				LIMIT %v`, slug, desc, limit)
+		} else {
+			query = fmt.Sprintf(`SELECT u.about, u.email, u.fullname, u.nickname FROM users AS u
+				JOIN forum_user AS fu ON u.nickname = fu.nickname
+				WHERE fu.forum_slug = '%s'
+				ORDER BY u.nickname %v`, slug, desc)
+		}
 	}
-	query += fmt.Sprintf(` limit %d`, limit)
+
 	rows, err := repo.Con.Query(context.Background(), query)
+	defer rows.Close()
+
 	if err != nil {
+		fmt.Println("err1:", err)
 		return nil, err
 	}
-	defer rows.Close()
-	users := make([]*usersModels.User, 0)
 
+	users := make([]userModel.User, 0, limit)
+	user := userModel.User{}
 	for rows.Next() {
-		user := &usersModels.User{}
-		err := rows.Scan(&user.Nickname, &user.FullName, &user.About, &user.Email)
+		err = rows.Scan(&user.About, &user.Email, &user.Fullname, &user.Nickname)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("err2:", err)
+			return nil, err
 		}
+
 		users = append(users, user)
 	}
-	return users, nil
+	return &users, nil
+}
+
+func (repo *ForumRepository) CheckForum(slug string) (string, error) {
+	query := `SELECT slug FROM forums WHERE slug = $1`
+	err := repo.Con.QueryRow(context.Background(), query, slug).Scan(&slug)
+
+	if err != nil {
+		return "", fmt.Errorf("couldn't get forum with slug '%v'. Error: %w", slug, err)
+	}
+
+	return slug, nil
 }

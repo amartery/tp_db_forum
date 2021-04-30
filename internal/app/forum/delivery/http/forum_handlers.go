@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/amartery/tp_db_forum/internal/app/forum"
-	"github.com/amartery/tp_db_forum/internal/app/forum/models"
+	forumModel "github.com/amartery/tp_db_forum/internal/app/forum/models"
 	"github.com/amartery/tp_db_forum/internal/app/thread"
-	threadModels "github.com/amartery/tp_db_forum/internal/app/thread/models"
+	threadModel "github.com/amartery/tp_db_forum/internal/app/thread/models"
 
 	// usersModels "github.com/amartery/tp_db_forum/internal/app/user/models"
 	"github.com/amartery/tp_db_forum/internal/app/user"
@@ -41,147 +41,208 @@ func NewForumHandler(forumUsecase forum.Usecase, userUsecase user.Usecase, threa
 
 func (f *ForumHandler) ForumCreate(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumCreate")
-	newForum := &models.Forum{}
-	err := json.Unmarshal(ctx.PostBody(), newForum)
+	forum := &forumModel.Forum{}
+	err := json.Unmarshal(ctx.PostBody(), &forum)
 	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	_, err = f.usecaseUser.GetUserByNickname(newForum.Nickname)
+
+	nickname, err := f.usecaseUser.CheckIfUserExists(forum.User)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find user with nickname %s", newForum.Nickname)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
-		return
-	}
-	err = f.usecaseForum.CreateForum(newForum)
-	if err != nil {
-		alredyExicted, err := f.usecaseForum.GetForumBySlug(newForum.Slug)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find user with id #%v\n", forum.User),
+		}
+
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		err = json.NewEncoder(ctx).Encode(msg)
 		if err != nil {
-			msg := fmt.Sprintf("Can't find user with nickname %s", newForum.Nickname)
-			utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 			return
 		}
-		utils.SendResponse(fasthttp.StatusConflict, alredyExicted, ctx)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusCreated, newForum, ctx)
+	forum.User = nickname
+
+	err = f.usecaseForum.CreateForum(forum)
+	if err != nil {
+
+		existingForum, err := f.usecaseForum.GetForumBySlug(forum.Slug)
+		if err != nil {
+
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+
+		ctx.SetStatusCode(fasthttp.StatusConflict)
+		err = json.NewEncoder(ctx).Encode(existingForum)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	ctx.SetStatusCode(fasthttp.StatusCreated)
+	err = json.NewEncoder(ctx).Encode(forum)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (f *ForumHandler) ForumDetails(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumDetails")
-	slug, ok := ctx.UserValue("slug").(string)
-	if !ok {
-		utils.SendServerError("Can't get value from slug", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
+	slug := ctx.UserValue("slug").(string)
 	forum, err := f.usecaseForum.GetForumBySlug(slug)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find forum with slug %s", slug)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find forum with slug: %v", slug),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, forum, ctx)
+
+	err = json.NewEncoder(ctx).Encode(forum)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (f *ForumHandler) ForumCreateBranch(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumCreateBranch")
-	slug, ok := ctx.UserValue("slug").(string)
-	if !ok {
-		utils.SendServerError("Can't get value from slug", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	thread := &threadModels.Thread{Forum: slug}
-	err := thread.UnmarshalJSON(ctx.PostBody())
+	slug := ctx.UserValue("slug").(string)
+
+	thread := &threadModel.Thread{}
+	err := json.Unmarshal(ctx.PostBody(), thread)
 	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	alredyExicted, err := f.usecaseThread.FindThreadBySlug(thread.Slug)
-	if err == nil && alredyExicted.Slug != "" {
-		body, err := alredyExicted.MarshalJSON()
+	thread.Forum = slug
+
+	nickname, err := f.usecaseUser.CheckIfUserExists(thread.Author)
+	if err != nil {
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find user with id #%v\n", thread.Author),
+		}
+
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		err = json.NewEncoder(ctx).Encode(msg)
 		if err != nil {
-			utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 			return
 		}
-		utils.SendResponse(fasthttp.StatusConflict, body, ctx) // ???? alredy json
 		return
 	}
-	_, err = f.usecaseForum.GetForumBySlug(thread.Forum)
+	thread.Author = nickname
+
+	err = f.usecaseThread.CreateThread(thread)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find forum with slug %s", slug)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		if err == forum.ErrForumDoesntExists {
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			msg := utils.Message{
+				Text: fmt.Sprintf("Can't find thread forum by slug: %v", thread.Forum),
+			}
+
+			_ = json.NewEncoder(ctx).Encode(msg)
+			return
+		}
+
+		existedThread, err := f.usecaseThread.GetThread(*thread.Slug)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+
+		ctx.SetStatusCode(fasthttp.StatusConflict)
+		_ = json.NewEncoder(ctx).Encode(existedThread)
 		return
 	}
-	newThread, err := f.usecaseThread.CreateThread(thread)
+
+	ctx.SetStatusCode(fasthttp.StatusCreated)
+	err = json.NewEncoder(ctx).Encode(thread)
 	if err != nil {
-		utils.SendServerError("Can't create thread", fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		return
 	}
-	body, err := newThread.MarshalJSON()
-	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	utils.SendResponse(fasthttp.StatusCreated, body, ctx)
 }
 
 func (f *ForumHandler) CurrentForumUsers(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting CurrentForumUsers")
-	slug, ok := ctx.UserValue("slug").(string)
-	if !ok {
-		utils.SendServerError("Can't get value from slug", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	desc := ctx.QueryArgs().GetBool("desc")
-	limit, err := ctx.QueryArgs().GetUint("limit")
-	if err != nil {
-		limit = 100
-	}
-	since := string(ctx.QueryArgs().Peek("since"))
+	slug := ctx.UserValue("slug").(string)
 
-	users, err := f.usecaseForum.GetUsersByForum(slug, since, limit, desc)
+	_, err := f.usecaseForum.CheckForum(slug)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find user with slug %s", slug)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find forum by slug: %v", slug),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, users, ctx)
+	fmt.Println("ggg")
+	limitParam := string(ctx.URI().QueryArgs().Peek("limit"))
+	limit, err := strconv.Atoi(limitParam)
+	if err != nil && limitParam != "" {
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		return
+	}
+
+	descParam := string(ctx.URI().QueryArgs().Peek("desc"))
+	if descParam == "" {
+		descParam = "false"
+	}
+
+	sinceParam := string(ctx.URI().QueryArgs().Peek("since"))
+
+	users, err := f.usecaseForum.GetUsersByForum(slug, limit, sinceParam, descParam)
+	if err != nil {
+		fmt.Println("err>:", err)
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(ctx).Encode(users)
+	if err != nil {
+		fmt.Println("err>>:", err)
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (f *ForumHandler) ForumBranches(ctx *fasthttp.RequestCtx) {
 	f.logger.Info("starting ForumBranches")
-	slug, ok := ctx.UserValue("slug").(string)
-	if !ok {
-		utils.SendServerError("Can't get value from slug", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	limit, err := strconv.Atoi(string(ctx.FormValue("limit")))
-	if err != nil {
-		fmt.Println(err)
-	}
-	since := string(ctx.QueryArgs().Peek("since"))
-	if err != nil {
-		fmt.Println(err)
-	}
-	desc := string(ctx.FormValue("desc"))
-	if err != nil {
-		fmt.Println(err)
-	}
+	slug := ctx.UserValue("slug").(string)
 
-	threads, err := f.usecaseThread.GetThreadsByForumSlug(slug, since, desc, limit)
+	_, err := f.usecaseForum.CheckForum(slug)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find thread with slug %s", slug)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
-		return
-	}
-
-	if len(threads) == 0 {
-		_, err = f.usecaseForum.GetForumBySlug(slug)
-		if err != nil {
-			msg := fmt.Sprintf("Can't find thread with slug %s", slug)
-			utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
-			return
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find forum by slug: %v", slug),
 		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
+		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, threads, ctx)
+
+	limit := string(ctx.URI().QueryArgs().Peek("limit"))
+	desc := string(ctx.URI().QueryArgs().Peek("desc"))
+	since := string(ctx.URI().QueryArgs().Peek("since"))
+
+	threads, err := f.usecaseThread.GetThreadsByForumSlug(slug, limit, since, desc)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(ctx).Encode(threads)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }

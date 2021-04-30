@@ -5,6 +5,6 @@ import (
 )
 
 type Repository interface {
-	UpdatePostByID(post *models.Post) (*models.Post, error)
-	GetPost(postID int) (*models.Post, error)
+	UpdatePost(post *models.Post) (*models.Post, error)
+	GetPost(id string) (*models.Post, error)
 }

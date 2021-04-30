@@ -3,10 +3,13 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
-	postModels "github.com/amartery/tp_db_forum/internal/app/post/models"
+	"github.com/amartery/tp_db_forum/internal/app/forum"
+	postModel "github.com/amartery/tp_db_forum/internal/app/post/models"
 	"github.com/amartery/tp_db_forum/internal/app/thread"
 	"github.com/amartery/tp_db_forum/internal/app/thread/models"
+	"github.com/amartery/tp_db_forum/internal/app/user"
 	"github.com/amartery/tp_db_forum/internal/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
@@ -14,12 +17,14 @@ import (
 
 type ThreadHandler struct {
 	usecaseThread thread.Usecase
+	usecaseUser   user.Usecase
 	logger        *logrus.Logger
 }
 
-func NewThreadHandler(threadUsecase thread.Usecase) *ThreadHandler {
+func NewThreadHandler(t thread.Usecase, u user.Usecase) *ThreadHandler {
 	return &ThreadHandler{
-		usecaseThread: threadUsecase,
+		usecaseThread: t,
+		usecaseUser:   u,
 		logger:        logrus.New(),
 	}
 }
@@ -32,123 +37,220 @@ func NewThreadHandler(threadUsecase thread.Usecase) *ThreadHandler {
 
 func (handler *ThreadHandler) CreatePostInBranch(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CreatePostInBranch")
-	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		utils.SendServerError("Can't get slug_or_id", fasthttp.StatusInternalServerError, ctx)
+	slugOrID := ctx.UserValue("slug_or_id").(string)
+
+	thread, err := handler.usecaseThread.GetThreadIDAndForum(slugOrID)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find post thread by id: %v", slugOrID),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
 
-	posts := make([]*postModels.Post, 0)
-	err := json.Unmarshal(ctx.PostBody(), &posts)
+	posts := make([]postModel.Post, 0)
+	err = json.Unmarshal(ctx.PostBody(), &posts)
 	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	posts, err = handler.usecaseThread.CreatePost(posts, slug_or_id)
-	if err != nil {
-		var code int
-		if err.Error() == "some_err" {
-			code = fasthttp.StatusConflict
-		} else {
-			code = fasthttp.StatusNotFound
+
+	fmt.Println("posts: ", posts)
+
+	if len(posts) == 0 {
+		ctx.SetStatusCode(fasthttp.StatusCreated)
+		_ = json.NewEncoder(ctx).Encode(posts)
+		return
+	}
+
+	for _, post := range posts {
+		_, err = handler.usecaseUser.CheckIfUserExists(post.Author)
+		fmt.Println("post.Author: ", post.Author)
+		if err != nil {
+			fmt.Println("err3:", err)
+			msg := utils.Message{
+				Text: fmt.Sprintf("Can't find post author by nickname: %v", post.Author),
+			}
+
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			err = json.NewEncoder(ctx).Encode(msg)
+			if err != nil {
+				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+				return
+			}
+			return
 		}
-		msg := "Can't find post author by nickname: "
-		utils.SendServerError(msg, code, ctx)
+	}
+
+	err = handler.usecaseThread.CreatePosts(*thread, posts)
+	if err != nil {
+		fmt.Println("err1:", err)
+		if err == forum.ErrWrongParent {
+			fmt.Println("err2:", err)
+			ctx.SetStatusCode(fasthttp.StatusConflict)
+			msg := utils.Message{
+				Text: "Parent post was created in another thread",
+			}
+
+			_ = json.NewEncoder(ctx).Encode(msg)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusConflict)
+		msg := utils.Message{
+			Text: "Parent post was created in another thread",
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	if posts == nil {
-		return
-	}
-	utils.SendResponse(fasthttp.StatusCreated, posts, ctx)
+
+	ctx.SetStatusCode(fasthttp.StatusCreated)
+	_ = json.NewEncoder(ctx).Encode(posts)
+
 }
 
 func (handler *ThreadHandler) BranchDetailsGet(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting BranchDetailsGet")
-	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		utils.SendServerError("Can't get slug_or_id", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	thread, err := handler.usecaseThread.GetThreadBySLUGorID(slug_or_id)
+	slugOrID := ctx.UserValue("slug_or_id").(string)
+
+	threads, err := handler.usecaseThread.GetThread(slugOrID)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find thread with slug %s", slug_or_id)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find thread by slug: %v", slugOrID),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, thread, ctx)
+
+	err = json.NewEncoder(ctx).Encode(threads)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (handler *ThreadHandler) BranchDetailsUpdate(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting BranchDetailsUpdate")
-	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	updateReq := &models.UpdateRequest{}
-	err := updateReq.UnmarshalJSON(ctx.Request.Body())
+	slugOrID := ctx.UserValue("slug_or_id").(string)
+
+	err := handler.usecaseThread.CheckThread(slugOrID)
 	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find thread by slug: %v", slugOrID),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	thread := &models.Thread{
-		Title:   updateReq.Title,
-		Message: updateReq.Message,
-	}
-	thread, err = handler.usecaseThread.UpdateTreads(slug_or_id, thread)
+
+	thread := &models.Thread{}
+	err = json.Unmarshal(ctx.PostBody(), &thread)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find thread with slug %s", slug_or_id)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, thread, ctx)
+
+	if thread.Title == "" && thread.Message == "" {
+		thread, err = handler.usecaseThread.GetThread(slugOrID)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusBadRequest)
+			return
+		}
+	} else {
+		thread, err = handler.usecaseThread.UpdateThread(slugOrID, thread)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+	}
+
+	err = json.NewEncoder(ctx).Encode(thread)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (handler *ThreadHandler) CurrentBranchPosts(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CurrentBranchPosts")
-	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		utils.SendServerError("Can't get slug_or_id", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	since := string(ctx.QueryArgs().Peek("since"))
-	limit, err := ctx.QueryArgs().GetUint("limit")
-	if err != nil {
-		utils.SendServerError("Can't get limit", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	sort := string(ctx.QueryArgs().Peek("sort"))
-	desc := ctx.QueryArgs().GetBool("desc")
+	slugOrID := ctx.UserValue("slug_or_id").(string)
 
-	posts, err := handler.usecaseThread.GetPosts(sort, since, slug_or_id, limit, desc)
+	err := handler.usecaseThread.CheckThread(slugOrID)
 	if err != nil {
-		msg := fmt.Sprintf("Can't threads with forum slug %s", slug_or_id)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find thread by slug: %v", slugOrID),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
-	utils.SendResponse(fasthttp.StatusOK, posts, ctx)
+
+	limitParam := string(ctx.URI().QueryArgs().Peek("limit"))
+	limit, err := strconv.Atoi(limitParam)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
+		return
+	}
+
+	sortParam := string(ctx.URI().QueryArgs().Peek("sort"))
+	descParam := string(ctx.URI().QueryArgs().Peek("ddesc"))
+	if descParam == "" {
+		descParam = "false"
+	}
+
+	sinceParam := string(ctx.URI().QueryArgs().Peek("since"))
+
+	posts, err := handler.usecaseThread.GetPosts(slugOrID, limit, sortParam, descParam, sinceParam)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(ctx).Encode(posts)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (handler *ThreadHandler) VoteForBranch(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting VoteForBranch")
-	slug_or_id, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
+	slugOrID := ctx.UserValue("slug_or_id").(string)
+
 	vote := &models.Vote{}
-	err := vote.UnmarshalJSON(ctx.PostBody())
+	err := json.Unmarshal(ctx.PostBody(), &vote)
 	if err != nil {
-		utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
 
-	thread, err := handler.usecaseThread.CreateNewVote(vote, slug_or_id)
+	vote.Slug = slugOrID
+	id, err := strconv.Atoi(slugOrID)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find thread with slug %s", slug_or_id)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		id = 0
+	}
+	vote.ID = id
+
+	thread, err := handler.usecaseThread.Vote(vote)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find thread by slug: %v", slugOrID),
+		}
+
+		_ = json.NewEncoder(ctx).Encode(msg)
 		return
 	}
 
-	utils.SendResponse(fasthttp.StatusOK, thread, ctx)
+	err = json.NewEncoder(ctx).Encode(thread)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }

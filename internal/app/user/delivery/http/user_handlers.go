@@ -2,8 +2,10 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/amartery/tp_db_forum/internal/app/forum"
 	"github.com/amartery/tp_db_forum/internal/app/user"
 	"github.com/amartery/tp_db_forum/internal/app/user/models"
 	"github.com/amartery/tp_db_forum/internal/pkg/utils"
@@ -12,14 +14,16 @@ import (
 )
 
 type UserHandler struct {
-	usecaseUser user.Usecase
-	logger      *logrus.Logger
+	usecaseUser  user.Usecase
+	usecaseForum forum.Usecase
+	logger       *logrus.Logger
 }
 
-func NewUserHandler(userUsecase user.Usecase) *UserHandler {
+func NewUserHandler(u user.Usecase, f forum.Usecase) *UserHandler {
 	return &UserHandler{
-		usecaseUser: userUsecase,
-		logger:      logrus.New(),
+		usecaseUser:  u,
+		usecaseForum: f,
+		logger:       logrus.New(),
 	}
 }
 
@@ -29,85 +33,110 @@ func NewUserHandler(userUsecase user.Usecase) *UserHandler {
 
 func (handler *UserHandler) CreateUser(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting CreateUser")
-	nickname, ok := ctx.UserValue("nickname").(string)
-	if !ok {
-		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
+	nickname := ctx.UserValue("nickname").(string)
+
+	user := &models.User{}
+	err := json.Unmarshal(ctx.PostBody(), user)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	newUser := &models.User{}
-	err := json.Unmarshal(ctx.PostBody(), newUser)
+	user.Nickname = nickname
+
+	err = handler.usecaseUser.Create(user)
 	if err != nil {
-		fmt.Println(err)
-	}
-	newUser.Nickname = nickname
-	err = handler.usecaseUser.CreateUser(newUser)
-	if err != nil {
-		alredyExictedUser, err := handler.usecaseUser.GetUserByEmailOrNickname(newUser.Nickname, newUser.Email)
+		users, err := handler.usecaseUser.GetUsersWithNicknameAndEmail(nickname, *user.Email)
 		if err != nil {
-			utils.SendServerError(err.Error(), fasthttp.StatusInternalServerError, ctx)
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 			return
 		}
-		utils.SendResponse(fasthttp.StatusConflict, alredyExictedUser, ctx)
+
+		ctx.SetStatusCode(fasthttp.StatusConflict)
+		err = json.NewEncoder(ctx).Encode(users)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	utils.SendResponse(fasthttp.StatusCreated, newUser, ctx)
+	ctx.SetStatusCode(fasthttp.StatusCreated)
+	_ = json.NewEncoder(ctx).Encode(user)
 }
 
 func (handler *UserHandler) AboutUserGet(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting AboutUserGet")
-	nickname, ok := ctx.UserValue("nickname").(string)
-	if !ok {
-		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	user, err := handler.usecaseUser.GetUserByNickname(nickname)
+	nickname := ctx.UserValue("nickname").(string)
+
+	profile, err := handler.usecaseUser.Get(nickname)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find user with nickname %s", nickname)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		msg := utils.Message{
+			Text: fmt.Sprintf("Can't find user with id #%v\n", nickname),
+		}
+
+		err = json.NewEncoder(ctx).Encode(msg)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	utils.SendResponse(fasthttp.StatusOK, user, ctx)
+	err = json.NewEncoder(ctx).Encode(profile)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
 }
 
 func (handler *UserHandler) AboutUserUpdate(ctx *fasthttp.RequestCtx) {
 	logrus.Info("starting AboutUserUpdate")
-	nickname, ok := ctx.UserValue("nickname").(string)
-	if !ok {
-		utils.SendServerError("some err", fasthttp.StatusInternalServerError, ctx)
-		return
-	}
-	newUser := &models.User{}
-	err := json.Unmarshal(ctx.PostBody(), newUser)
+	nickname := ctx.UserValue("nickname").(string)
+
+	profile := &models.User{}
+	err := json.Unmarshal(ctx.PostBody(), profile)
 	if err != nil {
-		fmt.Println(err)
-	}
-	newUser.Nickname = nickname
-
-	us, err := handler.usecaseUser.GetUserByEmail(newUser.Email)
-	if err == nil && us.Nickname != newUser.Nickname {
-		msg := fmt.Sprintf("Can't find user with nickname %s", nickname)
-		utils.SendServerError(msg, fasthttp.StatusConflict, ctx)
+		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		return
 	}
-	oldUser, err := handler.usecaseUser.GetUserByNickname(nickname)
+	profile.Nickname = nickname
+
+	fullProfile, err := handler.usecaseUser.Update(profile)
 	if err != nil {
-		msg := fmt.Sprintf("Can't find user with nickname %s", nickname)
-		utils.SendServerError(msg, fasthttp.StatusNotFound, ctx)
+		var msg utils.Message
+		if errors.Is(err, user.ErrUserDoesntExists) {
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			msg = utils.Message{
+				Text: fmt.Sprintf("Can't find user with id #%v\n", nickname),
+			}
+		} else if errors.Is(err, user.ErrDataConflict) {
+			emailOwnerNickname, err := handler.usecaseUser.GetUserNicknameWithEmail(*profile.Email)
+			if err != nil {
+				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+				return
+			}
+
+			ctx.SetStatusCode(fasthttp.StatusConflict)
+			msg = utils.Message{
+				Text: fmt.Sprintf("This email is already registered by user: %v", emailOwnerNickname),
+			}
+		} else {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+
+		err = json.NewEncoder(ctx).Encode(msg)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	err = handler.usecaseUser.UpdateUserInformation(newUser)
-
-	if newUser.FullName == "" {
-		newUser.FullName = oldUser.FullName
+	err = json.NewEncoder(ctx).Encode(fullProfile)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
 	}
-	if newUser.About == "" {
-		newUser.About = oldUser.About
-	}
-	if newUser.Email == "" {
-		newUser.Email = oldUser.Email
-	}
-	utils.SendResponse(fasthttp.StatusOK, newUser, ctx)
 }

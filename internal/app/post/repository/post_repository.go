@@ -2,11 +2,9 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"time"
+	"strconv"
 
 	"github.com/amartery/tp_db_forum/internal/app/post/models"
-	"github.com/go-openapi/strfmt"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -20,65 +18,50 @@ func NewPostRepository(con *pgxpool.Pool) *PostRepository {
 	}
 }
 
-func (repo *PostRepository) GetPost(postID int) (*models.Post, error) {
-	query := `SELECT id, parent, author, message, is_edited, forum, thread, created FROM Posts
-			 WHERE id = $1
-			 ORDER BY created, id`
-
+func (repo *PostRepository) GetPost(id string) (*models.Post, error) {
+	query := `SELECT author, created, forum, id, msg, thread, isEdited, parent FROM posts WHERE id = $1`
 	post := &models.Post{}
-	t := &time.Time{}
-	var parent sql.NullInt64
-	err := repo.Con.QueryRow(
-		context.Background(),
-		query,
-		postID).Scan(
-		&post.ID,
-		&parent,
+	err := repo.Con.QueryRow(context.Background(), query, id).Scan(
 		&post.Author,
-		&post.Message,
-		&post.IsEdited,
+		&post.Created,
 		&post.Forum,
+		&post.ID,
+		&post.Message,
 		&post.Thread,
-		t)
-	post.Created = strfmt.DateTime(t.UTC()).String()
-	if parent.Valid {
-		post.Parent = int(parent.Int64)
-	}
+		&post.IsEdited,
+		&post.Parent)
 
 	if err != nil {
 		return nil, err
 	}
+
 	return post, nil
 }
 
-func (repo *PostRepository) UpdatePostByID(post *models.Post) (*models.Post, error) {
-	query := `UPDATE Posts
-			  SET message = (CASE WHEN LTRIM($1) = '' THEN message ELSE $1 END),
-    		      is_edited = (CASE WHEN LTRIM($1) = '' THEN false ELSE true END)
-			  WHERE id = $2 RETURNING id, parent, author, message, is_edited, forum, thread, created`
-
-	t := &time.Time{}
-	var parent sql.NullInt64
-	err := repo.Con.QueryRow(
-		context.Background(),
-		query,
-		post.Message,
-		post.ID).Scan(
-		&post.ID,
-		&parent,
-		&post.Author,
-		&post.Message,
-		&post.IsEdited,
-		&post.Forum,
-		&post.Thread,
-		t)
+func (repo *PostRepository) UpdatePost(post *models.Post) (*models.Post, error) {
+	postDB, err := repo.GetPost(strconv.Itoa(post.ID))
 	if err != nil {
 		return nil, err
 	}
-	post.Created = strfmt.DateTime(t.UTC()).String()
-	if parent.Valid {
-		post.Parent = int(parent.Int64)
-	}
 
+	if post.Message == postDB.Message {
+		return postDB, nil
+	}
+	query := `UPDATE posts SET msg = $1, isEdited = true 
+	          WHERE id = $2
+	          RETURNING author, created, forum, id, msg, thread, isEdited, parent`
+	err = repo.Con.QueryRow(context.Background(), query, post.Message, post.ID).Scan(
+		&post.Author,
+		&post.Created,
+		&post.Forum,
+		&post.ID,
+		&post.Message,
+		&post.Thread,
+		&post.IsEdited,
+		&post.Parent)
+
+	if err != nil {
+		return nil, err
+	}
 	return post, nil
 }

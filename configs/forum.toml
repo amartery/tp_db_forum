@@ -1,5 +1,5 @@
-bind_addr = ":8080"
+bind_addr = ":5000"
 log_level = "debug"
 
 [store]
-database_url = "host=localhost dbname=db_tp user=admin password=admin sslmode=disable"
+database_url = "host=localhost user=docker password=docker dbname=forum sslmode=disable"

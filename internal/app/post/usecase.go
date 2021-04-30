@@ -7,5 +7,5 @@ import (
 type Usecase interface {
 	UpdatePost(post *models.Post) (*models.Post, error)
 
-	GetPost(postID int, relatedStrs []string) (*models.PostResponse, error)
+	GetPost(id string) (*models.Post, error)
 }

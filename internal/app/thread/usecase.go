@@ -1,17 +1,24 @@
 package thread
 
 import (
-	postModels "github.com/amartery/tp_db_forum/internal/app/post/models"
+	postModel "github.com/amartery/tp_db_forum/internal/app/post/models"
 	"github.com/amartery/tp_db_forum/internal/app/thread/models"
 )
 
 type Usecase interface {
-	FindThreadBySlug(slug string) (*models.Thread, error)
-	CreateThread(thread *models.Thread) (*models.Thread, error)
-	GetThreadsByForumSlug(slug, since, desc string, limit int) ([]*models.Thread, error)
-	CreatePost(posts []*postModels.Post, slugOrInt string) ([]*postModels.Post, error)
-	GetThreadBySLUGorID(slug_or_id string) (*models.Thread, error)
-	UpdateTreads(slug_or_id string, th *models.Thread) (*models.Thread, error)
-	GetPosts(sort, since, slug_or_id string, limit int, desc bool) ([]*postModels.Post, error)
-	CreateNewVote(vote *models.Vote, slug_or_id string) (*models.Thread, error)
+	GetThread(slugOrID string) (*models.Thread, error)
+	GetThreadIDAndForum(slugOrID string) (*models.Thread, error)
+	CreatePosts(thread models.Thread, posts []postModel.Post) error
+
+	UpdateThread(slugOrID string, thread *models.Thread) (*models.Thread, error)
+	GetPosts(slugOrID string, limit int, sort string, order string, since string) ([]postModel.Post, error)
+	Vote(vote *models.Vote) (*models.Thread, error)
+
+	/////
+	CreateThread(thread *models.Thread) error
+	GetThreadsByForumSlug(slug, limit, since, desc string) (*[]models.Thread, error)
+
+	//!!
+	CheckThread(slugOrID string) error
+	CheckForum(slug string) (string, error)
 }

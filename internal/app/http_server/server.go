@@ -12,6 +12,7 @@ import (
 	"github.com/amartery/tp_db_forum/internal/app/user"
 	DeliveryUser "github.com/amartery/tp_db_forum/internal/app/user/delivery/http"
 
+	"github.com/amartery/tp_db_forum/internal/app/middleware"
 	"github.com/fasthttp/router"
 	"github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
@@ -78,31 +79,31 @@ func (s *ForumServer) configureLogger() error {
 func (s *ForumServer) configureRouter() {
 
 	forumHandlers := DeliveryForum.NewForumHandler(s.usecaseForum, s.usecaseUser, s.usecaseThread)
-	s.router.POST("/forum/create", forumHandlers.ForumCreate)
-	s.router.GET("/forum/{slug}/details", forumHandlers.ForumDetails)
-	s.router.POST("/forum/{slug}/create", forumHandlers.ForumCreateBranch)
-	s.router.GET("/forum/{slug}/users", forumHandlers.CurrentForumUsers)
-	s.router.GET("/forum/{slug}/threads", forumHandlers.ForumBranches)
+	s.router.POST("/api/forum/create", middleware.ContentTypeJson(forumHandlers.ForumCreate))
+	s.router.GET("/api/forum/{slug}/details", middleware.ContentTypeJson(forumHandlers.ForumDetails))
+	s.router.POST("/api/forum/{slug}/create", middleware.ContentTypeJson(forumHandlers.ForumCreateBranch))
+	s.router.GET("/api/forum/{slug}/users", middleware.ContentTypeJson(forumHandlers.CurrentForumUsers))
+	s.router.GET("/api/forum/{slug}/threads", middleware.ContentTypeJson(forumHandlers.ForumBranches))
 
-	postHandlers := DeliveryPost.NewPostHandler(s.usecasePost)
-	s.router.GET("/post/{id}/details", postHandlers.PostDetailsGet)
-	s.router.POST("/post/{id}/details", postHandlers.PostDetailsUpdate)
+	postHandlers := DeliveryPost.NewPostHandler(s.usecasePost, s.usecaseUser, s.usecaseForum, s.usecaseThread)
+	s.router.GET("/api/post/{id}/details", middleware.ContentTypeJson(postHandlers.PostDetailsGet))
+	s.router.POST("/api/post/{id}/details", middleware.ContentTypeJson(postHandlers.PostDetailsUpdate))
 
 	serviceHandlers := DeliveryService.NewServiceHandler(s.usecaseService)
-	s.router.POST("/service/clear", serviceHandlers.ServiceClear)
-	s.router.GET("/service/status", serviceHandlers.ServiceStatus)
+	s.router.POST("/api/service/clear", middleware.ContentTypeJson(serviceHandlers.ServiceClear))
+	s.router.GET("/api/service/status", middleware.ContentTypeJson(serviceHandlers.ServiceStatus))
 
-	threadHandlers := DeliveryThread.NewThreadHandler(s.usecaseThread)
-	s.router.POST("/thread/{slug_or_id}/create", threadHandlers.CreatePostInBranch)
-	s.router.GET("/thread/{slug_or_id}/details", threadHandlers.BranchDetailsGet)
-	s.router.POST("/thread/{slug_or_id}/details", threadHandlers.BranchDetailsUpdate)
-	s.router.POST("/thread/{slug_or_id}/vote", threadHandlers.VoteForBranch)
-	s.router.GET("/thread/{slug_or_id}/posts", threadHandlers.CurrentBranchPosts)
+	threadHandlers := DeliveryThread.NewThreadHandler(s.usecaseThread, s.usecaseUser)
+	s.router.POST("/api/thread/{slug_or_id}/create", middleware.ContentTypeJson(threadHandlers.CreatePostInBranch))
+	s.router.GET("/api/thread/{slug_or_id}/details", middleware.ContentTypeJson(threadHandlers.BranchDetailsGet))
+	s.router.POST("/api/thread/{slug_or_id}/details", middleware.ContentTypeJson(threadHandlers.BranchDetailsUpdate))
+	s.router.POST("/api/thread/{slug_or_id}/vote", middleware.ContentTypeJson(threadHandlers.VoteForBranch))
+	s.router.GET("/api/thread/{slug_or_id}/posts", middleware.ContentTypeJson(threadHandlers.CurrentBranchPosts))
 
-	userHandlers := DeliveryUser.NewUserHandler(s.usecaseUser)
-	s.router.POST("/user/{nickname}/create", userHandlers.CreateUser)
-	s.router.GET("/user/{nickname}/profile", userHandlers.AboutUserGet)
-	s.router.POST("/user/{nickname}/profile", userHandlers.AboutUserUpdate)
+	userHandlers := DeliveryUser.NewUserHandler(s.usecaseUser, s.usecaseForum)
+	s.router.POST("/api/user/{nickname}/create", middleware.ContentTypeJson(userHandlers.CreateUser))
+	s.router.GET("/api/user/{nickname}/profile", middleware.ContentTypeJson(userHandlers.AboutUserGet))
+	s.router.POST("/api/user/{nickname}/profile", middleware.ContentTypeJson(userHandlers.AboutUserUpdate))
 }
 
 // DeliveryForum "github.com/amartery/tp_db_forum/internal/app/forum/delivery/http"

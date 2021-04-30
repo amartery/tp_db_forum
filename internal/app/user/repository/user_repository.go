@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/amartery/tp_db_forum/internal/app/user"
 	"github.com/amartery/tp_db_forum/internal/app/user/models"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -17,101 +20,116 @@ func NewUserRepository(con *pgxpool.Pool) *UserRepository {
 	}
 }
 
-func (u *UserRepository) GetUserByNickname(nickname string) (*models.User, error) {
-	query := `SELECT nickname, fullname, about, email FROM Users WHERE nickname = $1`
-	user := &models.User{}
+func (u *UserRepository) CheckIfUserExists(nickname string) (string, error) {
+	query := `SELECT nickname FROM users WHERE nickname = $1`
 
-	err := u.Con.QueryRow(
-		context.Background(),
-		query,
-		nickname).Scan(&user.Nickname, &user.FullName, &user.About, &user.Email)
-
+	err := u.Con.QueryRow(context.Background(), query, nickname).Scan(&nickname)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("user doesnt exist: %w", err)
 	}
-	return user, nil
+	return nickname, nil
 }
 
-func (u *UserRepository) CreateUser(user *models.User) error {
-	query := `INSERT INTO Users (nickname, fullname, about, email)
-			  VALUES ($1, $2, $3, $4)`
+func (u *UserRepository) Get(nickname string) (*models.User, error) {
+	query := `SELECT id, nickname, fullname, email, about FROM users WHERE nickname = $1`
+	model := &models.User{}
+	err := u.Con.QueryRow(context.Background(), query, nickname).Scan(
+		&model.ID,
+		&model.Nickname,
+		&model.Fullname,
+		&model.Email,
+		&model.About)
 
-	_, err := u.Con.Exec(
-		context.Background(),
-		query,
-		user.Nickname,
-		user.FullName,
-		user.About,
-		user.Email)
-
-	return err
-}
-
-func (u *UserRepository) GetUserByEmailOrNickname(nickname, email string) ([]*models.User, error) {
-	query := `SELECT nickname, fullname, about, email FROM Users
-			  WHERE nickname = $1 OR email = $2`
-
-	users := make([]*models.User, 0)
-
-	rows, err := u.Con.Query(
-		context.Background(),
-		query,
-		nickname,
-		email)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		user := &models.User{}
-		err = rows.Scan(
-			&user.Nickname,
-			&user.FullName,
-			&user.About,
-			&user.Email)
-		if err != nil {
-			return nil, err
+		if err == pgx.ErrNoRows {
+			return nil, user.ErrUserDoesntExists
 		}
-		users = append(users, user)
+		return nil, fmt.Errorf("couldn't get user with nickname '%v'. Error: %w", nickname, err)
 	}
-	return users, nil
+
+	return model, nil
 }
 
-func (u *UserRepository) UpdateUserInformation(user *models.User) error {
-	query := `UPDATE Users SET fullname = (CASE WHEN LTRIM($1) = '' THEN fullname ELSE $1 END), 
-	          about = (CASE WHEN $2 = '' THEN about ELSE $2 END), 
-			  email = (CASE WHEN LTRIM($3) = '' THEN email ELSE LTRIM($3) END)
-              WHERE nickname = $4`
+func (u *UserRepository) Create(model *models.User) error {
+	_, err := u.Con.Exec(context.Background(),
+		"INSERT INTO users (nickname, fullname, email, about) VALUES ($1, $2, $3, $4)",
+		model.Nickname, model.Fullname, model.Email, model.About,
+	)
 
-	_, err := u.Con.Exec(
-		context.Background(),
-		query,
-		user.FullName,
-		user.About,
-		user.Email,
-		user.Nickname)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't insert user: %v. Error: %w", model, err)
 	}
+
 	return nil
 }
 
-func (u *UserRepository) GetUserByEmail(email string) (*models.User, error) {
-	query := `SELECT nickname, fullname, about, email FROM Users WHERE email = $1`
-	user := &models.User{}
-
-	err := u.Con.QueryRow(
-		context.Background(),
-		query,
-		email).Scan(
-		&user.Nickname,
-		&user.FullName,
-		&user.About,
-		&user.Email)
-
+func (u *UserRepository) GetUsersWithNicknameAndEmail(nickname, email string) (*[]models.User, error) {
+	rows, err := u.Con.Query(context.Background(),
+		`SELECT nickname, fullname, email, about FROM users
+		WHERE nickname = $1 OR email = $2`,
+		nickname, email,
+	)
 	if err != nil {
+		return nil, fmt.Errorf(`couldn't get users with nickname '%v' and email '%v'. Error: %w`, nickname, email, err)
+	}
+	defer rows.Close()
+
+	users := make([]models.User, 0, 2)
+	user := &models.User{}
+	for rows.Next() {
+		err = rows.Scan(&user.Nickname, &user.Fullname, &user.Email, &user.About)
+		if err != nil {
+			return nil, fmt.Errorf(`couldn't get users with nickname '%v' and email '%v'. Error: %w`, nickname, email, err)
+		}
+
+		users = append(users, *user)
+	}
+
+	return &users, nil
+}
+
+func (u *UserRepository) Update(model *models.User) (*models.User, error) {
+	userFromDB, err := u.Get(model.Nickname)
+	if err != nil {
+		fmt.Println("fff")
 		return nil, err
 	}
-	return user, nil
+
+	if model.Fullname == nil {
+		model.Fullname = userFromDB.Fullname
+	}
+
+	if model.Email == nil {
+		model.Email = userFromDB.Email
+	}
+
+	if model.About == nil {
+		model.About = userFromDB.About
+	}
+
+	_, err = u.Con.Exec(context.Background(),
+		`UPDATE users SET fullname = $1, email = $2, about = $3
+		WHERE id = $4`,
+		model.Fullname, model.Email, model.About, userFromDB.ID,
+	)
+
+	if err != nil {
+		return nil, user.ErrDataConflict
+	}
+
+	return model, nil
+}
+
+func (u *UserRepository) GetUserNicknameWithEmail(email string) (string, error) {
+	var nickname string
+	err := u.Con.QueryRow(context.Background(),
+		"SELECT nickname FROM users WHERE email = $1",
+		email,
+	).Scan(&nickname)
+
+	if err != nil {
+		return "", fmt.Errorf(`couldn't get user nickname with email '%v'. Error: %w`, email, err)
+	}
+
+	return nickname, nil
 }

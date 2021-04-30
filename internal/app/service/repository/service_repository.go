@@ -18,12 +18,12 @@ func NewServiceRepository(con *pgxpool.Pool) *ServiceRepository {
 }
 
 func (repository *ServiceRepository) ClearDB() error {
-	query := `TRUNCATE Users_to_forums RESTART IDENTITY;
-			  TRUNCATE Votes RESTART IDENTITY;
-			  TRUNCATE Posts RESTART IDENTITY;
-			  TRUNCATE Threads RESTART IDENTITY;
-			  TRUNCATE Forum RESTART IDENTITY;
-			  TRUNCATE Users RESTART IDENTITY;`
+	query := `TRUNCATE TABLE Forum_user RESTART IDENTITY CASCADE;
+			  TRUNCATE TABLE Thread_vote RESTART IDENTITY CASCADE;
+			  TRUNCATE TABLE Posts RESTART IDENTITY CASCADE;
+			  TRUNCATE TABLE Threads RESTART IDENTITY CASCADE;
+			  TRUNCATE TABLE Forums RESTART IDENTITY CASCADE;
+			  TRUNCATE TABLE Users RESTART IDENTITY CASCADE;`
 
 	_, err := repository.Con.Exec(context.Background(), query)
 	if err != nil {
@@ -34,7 +34,7 @@ func (repository *ServiceRepository) ClearDB() error {
 
 func (repository *ServiceRepository) GetStatusDB() (*models.Status, error) {
 	queryUser := `SELECT COUNT(*) AS user_count FROM Users;`
-	queryForum := `SELECT COUNT(*) AS forum_count FROM Forum;`
+	queryForum := `SELECT COUNT(*) AS forum_count FROM Forums;`
 	queryThread := `SELECT COUNT(*) AS thread_count FROM Threads;`
 	queryPost := `SELECT COUNT(*) AS post_count FROM Posts;`
 

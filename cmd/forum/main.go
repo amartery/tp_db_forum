@@ -34,10 +34,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	// "host=localhost dbname=db_tp user=admin password=admin sslmode=disable"
 	DBcon, err := pgxpool.Connect(
 		context.Background(),
-		"host=localhost dbname=db_tp user=admin password=admin sslmode=disable",
+		"host=localhost user=docker password=docker dbname=forum sslmode=disable",
 	)
 	if err != nil {
 		fmt.Printf("Unable to connect to database: %v\n", err)
