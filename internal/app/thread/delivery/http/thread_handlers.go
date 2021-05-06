@@ -57,8 +57,6 @@ func (handler *ThreadHandler) CreatePostInBranch(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	fmt.Println("posts: ", posts)
-
 	if len(posts) == 0 {
 		ctx.SetStatusCode(fasthttp.StatusCreated)
 		_ = json.NewEncoder(ctx).Encode(posts)
@@ -67,9 +65,7 @@ func (handler *ThreadHandler) CreatePostInBranch(ctx *fasthttp.RequestCtx) {
 
 	for _, post := range posts {
 		_, err = handler.usecaseUser.CheckIfUserExists(post.Author)
-		fmt.Println("post.Author: ", post.Author)
 		if err != nil {
-			fmt.Println("err3:", err)
 			msg := utils.Message{
 				Text: fmt.Sprintf("Can't find post author by nickname: %v", post.Author),
 			}
@@ -86,9 +82,7 @@ func (handler *ThreadHandler) CreatePostInBranch(ctx *fasthttp.RequestCtx) {
 
 	err = handler.usecaseThread.CreatePosts(*thread, posts)
 	if err != nil {
-		fmt.Println("err1:", err)
 		if err == forum.ErrWrongParent {
-			fmt.Println("err2:", err)
 			ctx.SetStatusCode(fasthttp.StatusConflict)
 			msg := utils.Message{
 				Text: "Parent post was created in another thread",
