@@ -241,12 +241,11 @@ func (tr *ThreadRepository) GetPosts(slugOrID string, limit int, order string, s
 	if limit != 0 {
 		query += fmt.Sprintf(" LIMIT %v", limit)
 	}
-	fmt.Println(">>>1")
+
 	rows, err := tr.Con.Query(context.Background(), query, threadID)
 
 	defer rows.Close()
 
-	fmt.Println(">>>2")
 	posts := make([]postModel.Post, 0, limit)
 	post := postModel.Post{}
 	for rows.Next() {

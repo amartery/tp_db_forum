@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS CITEXT;
 
-CREATE TABLE IF NOT EXISTS Users
+CREATE UNLOGGED TABLE IF NOT EXISTS Users
 (
     id BIGSERIAL PRIMARY KEY,
     nickname CITEXT UNIQUE NOT NULL,
@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS Users
     email CITEXT UNIQUE NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS Forums
+CREATE INDEX index_users_nickname_hash ON users USING HASH (nickname);
+CREATE INDEX index_users_email_hash ON users USING HASH (email);
+
+CREATE UNLOGGED TABLE IF NOT EXISTS Forums
 (
     id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,
@@ -21,7 +24,12 @@ CREATE TABLE IF NOT EXISTS Forums
     FOREIGN KEY (user_nickname) REFERENCES Users (nickname)
 );
 
-CREATE TABLE IF NOT EXISTS Threads
+CREATE INDEX index_forums ON forums (slug, title, user_nickname, post_count, thread_count);
+CREATE INDEX index_forums_slug_hash ON forums USING HASH (slug);
+CREATE INDEX index_forums_users_foreign ON forums (user_nickname);
+
+
+CREATE UNLOGGED TABLE IF NOT EXISTS Threads
 (
     id BIGSERIAL PRIMARY KEY,
     author CITEXT NOT NULL,
@@ -36,7 +44,13 @@ CREATE TABLE IF NOT EXISTS Threads
     FOREIGN KEY (author) REFERENCES Users (nickname) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS Posts
+CREATE INDEX index_threads_forum_created ON threads (forum, created);
+CREATE INDEX index_threads_created ON threads (created);
+CREATE INDEX index_threads_slug_hash ON threads USING HASH (slug);
+CREATE INDEX index_threads_id_hash ON threads USING HASH (id);
+
+
+CREATE UNLOGGED TABLE IF NOT EXISTS Posts
 (
     id BIGSERIAL PRIMARY KEY,
     author CITEXT NOT NULL,
@@ -49,7 +63,13 @@ CREATE TABLE IF NOT EXISTS Posts
     path BIGINT[]
 );
 
-CREATE TABLE IF NOT EXISTS Thread_vote
+CREATE INDEX index_posts_id on posts (id);
+CREATE INDEX index_posts_thread_id on posts (thread, id);
+CREATE INDEX index_posts_thread_parent_path on posts (thread, parent, path);
+CREATE INDEX index_posts_path1_path on posts ((path[1]), path);
+
+
+CREATE UNLOGGED TABLE IF NOT EXISTS Thread_vote
 (
     thread_id BIGINT NOT NULL,
     vote BIGINT NOT NULL,
@@ -60,13 +80,19 @@ CREATE TABLE IF NOT EXISTS Thread_vote
     UNIQUE (thread_id, nickname)
 );
 
-CREATE TABLE IF NOT EXISTS Forum_user(
+CREATE UNIQUE INDEX index_votes_user_thread ON thread_vote (thread_id, nickname);
+
+
+CREATE UNLOGGED TABLE IF NOT EXISTS Forum_user(
     forum_slug CITEXT NOT NULL,
     nickname CITEXT NOT NULL,
 
     UNIQUE (forum_slug, nickname),
     FOREIGN KEY (nickname) REFERENCES Users (nickname)
 );
+
+CREATE INDEX index_forum_user ON forum_user (forum_slug, nickname);
+CREATE INDEX index_forum_user_nickname ON forum_user (nickname);
 
 
 

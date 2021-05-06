@@ -21,6 +21,5 @@ type Repository interface {
 	/////
 	CreateThread(thread *models.Thread) error
 	GetThreadsByForumSlug(slug, limit, since, desc string) (*[]models.Thread, error)
-
 	CheckForum(slug string) (string, error)
 }
