@@ -17,8 +17,6 @@ type Repository interface {
 	GetPostsTree(slugOrID string, limit int, order string, since string) ([]postModel.Post, error)
 	GetPostsParentTree(slugOrID string, limit int, order string, since string) ([]postModel.Post, error)
 	Vote(vote *models.Vote) (*models.Thread, error)
-
-	/////
 	CreateThread(thread *models.Thread) error
 	GetThreadsByForumSlug(slug, limit, since, desc string) (*[]models.Thread, error)
 	CheckForum(slug string) (string, error)

@@ -26,7 +26,3 @@ func SendResponse(code int, data interface{}, ctx *fasthttp.RequestCtx) {
 	}
 	ctx.SetBody(serializedData)
 }
-
-func SendResponseOK(data interface{}, ctx *fasthttp.RequestCtx) {
-	SendResponse(200, data, ctx)
-}
