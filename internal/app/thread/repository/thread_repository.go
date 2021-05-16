@@ -24,26 +24,6 @@ func NewThreadRepository(con *pgxpool.Pool) *ThreadRepository {
 	}
 }
 
-func (t *ThreadRepository) FindThreadBySlug(slug string) (*models.Thread, error) {
-	query := `SELECT author, created, forum, id, msg, slug, title, votes FROM threads WHERE slug = $1`
-	thread := &models.Thread{}
-	err := t.Con.QueryRow(context.Background(), query, slug).Scan(
-		&thread.Author,
-		&thread.Created,
-		&thread.Forum,
-		&thread.ID,
-		&thread.Message,
-		&thread.Slug,
-		&thread.Title,
-		&thread.Votes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return thread, nil
-}
-
 func (t *ThreadRepository) CheckForum(slug string) (string, error) {
 	err := t.Con.QueryRow(
 		context.Background(),
@@ -132,33 +112,6 @@ func (t *ThreadRepository) GetThreadsByForumSlug(slug, limit, since, desc string
 	return &threads, nil
 }
 
-func (tr *ThreadRepository) FindThreadByID(threadID int) (*models.Thread, error) {
-	query := `SELECT author, created, forum, id, msg, slug, title, votes FROM threads WHERE id = $1`
-	thread := &models.Thread{}
-	err := tr.Con.QueryRow(context.Background(), query, threadID).Scan(
-		&thread.Author,
-		&thread.Created,
-		&thread.Forum,
-		&thread.ID,
-		&thread.Message,
-		&thread.Slug,
-		&thread.Title,
-		&thread.Votes)
-
-	if err != nil {
-		return nil, err
-	}
-	return thread, nil
-}
-
-func (tr *ThreadRepository) CheckThreadID(parentID int) (int, error) {
-	query := `SELECT thread FROM Posts WHERE id = $1`
-	var threadID int
-
-	err := tr.Con.QueryRow(context.Background(), query, parentID).Scan(&threadID)
-	return threadID, err
-}
-
 func (tr *ThreadRepository) CreatePosts(thread models.Thread, posts []postModel.Post) error {
 	if posts[0].Parent != 0 {
 		var parentThread int
@@ -243,7 +196,9 @@ func (tr *ThreadRepository) GetPosts(slugOrID string, limit int, order string, s
 	}
 
 	rows, err := tr.Con.Query(context.Background(), query, threadID)
-
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	posts := make([]postModel.Post, 0, limit)
@@ -421,6 +376,9 @@ func (tr *ThreadRepository) GetPostsTree(slugOrID string, limit int, order strin
 	}
 
 	rows, err := tr.Con.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	if err != nil {
 		return nil, err

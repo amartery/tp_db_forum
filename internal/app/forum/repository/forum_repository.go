@@ -88,6 +88,9 @@ func (repo *ForumRepository) GetUsersByForum(slug string, limit int, since strin
 	}
 
 	rows, err := repo.Con.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	if err != nil {
